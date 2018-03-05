@@ -1,0 +1,148 @@
+#
+# Author: Giovanni Bechis <gbechis@apache.org>
+# Copyright 2018 Giovanni Bechis
+#
+# <@LICENSE>
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to you under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# </@LICENSE>
+#
+
+=head1 NAME
+
+Mail::SpamAssassin::Plugin::Phishing - check uris against OpenPhish feed
+
+=head1 SYNOPSIS
+
+  loadplugin Mail::SpamAssassin::Plugin::Phishing
+
+  ifplugin Mail::SpamAssassin::Plugin::Phishing
+    phishing_openphish_feed /etc/mail/spamassassin/feed.txt
+    body    URI_OPENPHISH       eval:check_phishing()
+    describe URI_OPENPHISH      Url match phishing in Openphish feed
+  endif
+
+=head1 DESCRIPTION
+
+PhishBreach Database is a free service that allows any organization to 
+check if it has email accounts that were potentially compromised 
+as a result of a phishing attack.
+The PhishBreach Database is based off IntellAct, OpenPhish's proprietary
+phishing campaign tracking technology.
+IntellAct consumes the phishing campaigns detected by OpenPhish, 
+analyzes them in real-time and produces a live feed of accounts 
+that were affected by those campaigns.
+
+The free feed is updated every 6 hours and can be downloaded from
+https://openphish.com/feed.txt.
+
+=cut
+
+package Mail::SpamAssassin::Plugin::Phishing;
+use strict;
+use warnings;
+my $VERSION = 0.001;
+
+use Errno qw(EBADF);
+use Mail::SpamAssassin::Plugin;
+use Mail::SpamAssassin::PerMsgStatus;
+
+our @ISA = qw(Mail::SpamAssassin::Plugin);
+
+sub dbg { Mail::SpamAssassin::Plugin::dbg ("Phishing: @_"); }
+
+sub new {
+    my ($class, $mailsa) = @_;
+
+    $class = ref($class) || $class;
+    my $self = $class->SUPER::new($mailsa);
+    bless ($self, $class);
+
+    $self->set_config($mailsa->{conf});
+    $self->register_eval_rule("check_phishing");
+
+    return $self;
+}
+
+sub set_config {
+    my ($self, $conf) = @_;
+    my @cmds;
+    push(@cmds, {
+        setting => 'phishing_openphish_feed',
+        type => $Mail::SpamAssassin::Conf::CONF_TYPE_STRING,
+        }
+    );
+    $conf->{parser}->register_commands(\@cmds);
+}
+
+#prepare the plugin
+sub check_start{
+  my ($self, $params) = @_;
+  my $pms = $params->{permsgstatus};
+
+  #initialize the PHISHING data structure for 
+  #saving configuration information
+  $pms->{PHISHING} = {};
+  $pms->{PHISHING}->{phishurl}=[];
+
+  #read the configuration info
+  $self->_read_configfile($params);
+}
+
+sub _read_configfile {
+  my ($self, $params) = @_;
+  my $pms = $params->{permsgstatus};
+
+  local *F;
+  open(F, '<', $pms->{conf}->{phishing_openphish_feed});
+  for ($!=0; <F>; $!=0) {
+      #lines that start with pound are comments
+      next if(/^\s*\#/);
+        push @{$pms->{PHISHING}->{phishurl}}, $_;
+  }
+
+  defined $_ || $!==0  or
+    $!==EBADF ? dbg("PHISHING: error reading config file: $!")
+              : die "error reading config file: $!";
+  close(F)  or die "error closing config file: $!";
+}
+
+sub check_phishing {
+  my ($self, $pms) = @_;
+
+  my $uris = $pms->get_uri_detail_list();
+
+  while (my($uri, $info) = each %{$uris}) {
+    # we want to skip mailto: uris
+    next if ($uri =~ /^mailto:/i);
+
+    # no hosts/domains were found via this uri, so skip
+    next unless ($info->{hosts});
+    if ($info->{types}->{a}) {
+      # check url
+      foreach my $cluri (@{$info->{cleaned}}) {
+        if (length $cluri) {
+           if ( grep(/^\Q$cluri\E$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
+              dbg("HIT! $cluri found in OpenPhishing feed");
+              return 1;
+           }
+        }
+      }
+    }
+   }
+  return 0;
+}
+
+1;
