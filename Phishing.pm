@@ -22,31 +22,30 @@
 
 =head1 NAME
 
-Mail::SpamAssassin::Plugin::Phishing - check uris against OpenPhish feed
+Mail::SpamAssassin::Plugin::Phishing - check uris against phishing feed
 
 =head1 SYNOPSIS
 
   loadplugin Mail::SpamAssassin::Plugin::Phishing
 
   ifplugin Mail::SpamAssassin::Plugin::Phishing
-    phishing_openphish_feed /etc/mail/spamassassin/feed.txt
-    body    URI_OPENPHISH       eval:check_phishing()
-    describe URI_OPENPHISH      Url match phishing in Openphish feed
+    phishing_openphish_feed /etc/mail/spamassassin/openphish-feed.txt
+    phishing_phishtank_feed /etc/mail/spamassassin/phishtank-feed.csv
+    body     URI_PHISHING      eval:check_phishing()
+    describe URI_PHISHING      Url match phishing in feed
   endif
 
 =head1 DESCRIPTION
 
-PhishBreach Database is a free service that allows any organization to 
-check if it has email accounts that were potentially compromised 
-as a result of a phishing attack.
-The PhishBreach Database is based off IntellAct, OpenPhish's proprietary
-phishing campaign tracking technology.
-IntellAct consumes the phishing campaigns detected by OpenPhish, 
-analyzes them in real-time and produces a live feed of accounts 
-that were affected by those campaigns.
+This phishing plugin finds uris used in phishing campaigns detected by 
+OpenPhish or PhishTank feeds.
 
-The free feed is updated every 6 hours and can be downloaded from
+The Openphish free feed is updated every 6 hours and can be downloaded from
 https://openphish.com/feed.txt.
+
+The PhishTank free feed is updated every 1 hours and can be downloaded from
+http://data.phishtank.com/data/online-valid.csv.
+To avoid download limits a registration is required.
 
 =cut
 
@@ -84,6 +83,11 @@ sub set_config {
         type => $Mail::SpamAssassin::Conf::CONF_TYPE_STRING,
         }
     );
+    push(@cmds, {
+        setting => 'phishing_phishtank_feed',
+        type => $Mail::SpamAssassin::Conf::CONF_TYPE_STRING,
+        }
+    );
     $conf->{parser}->register_commands(\@cmds);
 }
 
@@ -95,7 +99,8 @@ sub check_start{
   #initialize the PHISHING data structure for 
   #saving configuration information
   $pms->{PHISHING} = {};
-  $pms->{PHISHING}->{phishurl}=[];
+  $pms->{PHISHING}->{phishurl} = [];
+  $pms->{PHISHING}->{phishinfo} = {};
 
   #read the configuration info
   $self->_read_configfile($params);
@@ -104,19 +109,41 @@ sub check_start{
 sub _read_configfile {
   my ($self, $params) = @_;
   my $pms = $params->{permsgstatus};
+  my @phtank_ln;
 
   local *F;
-  open(F, '<', $pms->{conf}->{phishing_openphish_feed});
-  for ($!=0; <F>; $!=0) {
-      #lines that start with pound are comments
-      next if(/^\s*\#/);
-        push @{$pms->{PHISHING}->{phishurl}}, $_;
+  if ( defined $pms->{conf}->{phishing_openphish_feed} ) {
+    open(F, '<', $pms->{conf}->{phishing_openphish_feed});
+    for ($!=0; <F>; $!=0) {
+        #lines that start with pound are comments
+        next if(/^\s*\#/);
+          push @{$pms->{PHISHING}->{phishurl}}, $_;
+          push @{$pms->{PHISHING}->{phishinfo}->{$_}}, "OpenPhish";
+    }
+
+    defined $_ || $!==0  or
+      $!==EBADF ? dbg("PHISHING: error reading config file: $!")
+                : die "error reading config file: $!";
+    close(F) or die "error closing config file: $!";
   }
 
-  defined $_ || $!==0  or
-    $!==EBADF ? dbg("PHISHING: error reading config file: $!")
-              : die "error reading config file: $!";
-  close(F)  or die "error closing config file: $!";
+  if ( defined $pms->{conf}->{phishing_phishtank_feed} ) {
+    open(F, '<', $pms->{conf}->{phishing_phishtank_feed});
+    for ($!=0; <F>; $!=0) {
+        #skip first line
+        next if ( $. eq 1);
+        #lines that start with pound are comments
+        next if(/^\s*\#/);
+          @phtank_ln = split(/,/, $_);
+          push @{$pms->{PHISHING}->{phishurl}}, $phtank_ln[1];
+          push @{$pms->{PHISHING}->{phishinfo}->{$phtank_ln[1]}}, "PhishTank";
+    }
+
+    defined $_ || $!==0  or
+      $!==EBADF ? dbg("PHISHING: error reading config file: $!")
+                : die "error reading config file: $!";
+    close(F) or die "error closing config file: $!";
+  }
 }
 
 sub check_phishing {
@@ -135,7 +162,7 @@ sub check_phishing {
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
            if ( grep(/^\Q$cluri\E$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
-              dbg("HIT! $cluri found in OpenPhishing feed");
+              dbg("HIT! $cluri found in $pms->{PHISHING}->{phishinfo}->{$cluri}[0] feed");
               return 1;
            }
         }
