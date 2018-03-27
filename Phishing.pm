@@ -100,6 +100,7 @@ sub check_start{
   #saving configuration information
   $pms->{PHISHING} = {};
   $pms->{PHISHING}->{phishurl} = [];
+  $pms->{PHISHING}->{phishdomain} = [];
   $pms->{PHISHING}->{phishinfo} = {};
 
   #read the configuration info
@@ -118,6 +119,8 @@ sub _read_configfile {
         #lines that start with pound are comments
         next if(/^\s*\#/);
           push @{$pms->{PHISHING}->{phishurl}}, $_;
+          my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($_);
+          push @{$pms->{PHISHING}->{phishdomain}}, $phishdomain;
           push @{$pms->{PHISHING}->{phishinfo}->{$_}}, "OpenPhish";
     }
 
@@ -136,6 +139,8 @@ sub _read_configfile {
         next if(/^\s*\#/);
           @phtank_ln = split(/,/, $_);
           push @{$pms->{PHISHING}->{phishurl}}, $phtank_ln[1];
+          my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($phtank_ln[1]);
+          push @{$pms->{PHISHING}->{phishdomain}}, $phishdomain;
           push @{$pms->{PHISHING}->{phishinfo}->{$phtank_ln[1]}}, "PhishTank";
     }
 
@@ -161,8 +166,9 @@ sub check_phishing {
       # check url
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
-           if ( grep(/^\Q$cluri\E$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
-              dbg("HIT! $cluri found in $pms->{PHISHING}->{phishinfo}->{$cluri}[0] feed");
+           my $domain = $self->{main}->{registryboundaries}->uri_to_domain($cluri);
+           if ( grep(/^\Q$domain\E$/, @{$pms->{PHISHING}->{phishdomain}} ) ) {
+              dbg("HIT! $domain found in $pms->{PHISHING}->{phishinfo}->{$cluri}[0] feed");
               return 1;
            }
         }
