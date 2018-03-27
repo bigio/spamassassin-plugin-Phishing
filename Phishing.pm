@@ -113,7 +113,7 @@ sub _read_configfile {
   my @phtank_ln;
 
   local *F;
-  if ( -f $pms->{conf}->{phishing_openphish_feed} ) {
+  if ( defined($pms->{conf}->{phishing_openphish_feed}) && ( -f $pms->{conf}->{phishing_openphish_feed} ) ) {
     open(F, '<', $pms->{conf}->{phishing_openphish_feed});
     for ($!=0; <F>; $!=0) {
         #lines that start with pound are comments
@@ -132,7 +132,7 @@ sub _read_configfile {
     close(F) or die "error closing config file: $!";
   }
 
-  if ( -f $pms->{conf}->{phishing_phishtank_feed} ) {
+  if ( defined($pms->{conf}->{phishing_phishtank_feed}) && (-f $pms->{conf}->{phishing_phishtank_feed} ) ) {
     open(F, '<', $pms->{conf}->{phishing_phishtank_feed});
     for ($!=0; <F>; $!=0) {
         #skip first line
