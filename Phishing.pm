@@ -166,7 +166,7 @@ sub check_phishing {
 
     # no hosts/domains were found via this uri, so skip
     next unless ($info->{hosts});
-    if ($info->{types}->{a}) {
+    if (($info->{types}->{a}) || ($info->{types}->{parsed})) {
       # check url
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
