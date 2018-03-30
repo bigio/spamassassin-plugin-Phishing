@@ -171,7 +171,12 @@ sub check_phishing {
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
            my $domain = $self->{main}->{registryboundaries}->uri_to_domain($cluri);
-           if ( grep(/^\Q$domain\E$/, @{$pms->{PHISHING}->{phishdomain}} ) ) {
+           my @phishurlsmall = split /\//, $cluri;
+           if ( not defined $phishurlsmall[3] ) {
+             $phishurlsmall[3] = '';
+           }
+           my $urlmatch = "https?://" . $domain . "/" . $phishurlsmall[3];
+           if ( grep(/^$urlmatch.*$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
               dbg("HIT! $domain found in $pms->{PHISHING}->{phishinfo}->{$domain}[0] feed");
               return 1;
            }
