@@ -137,15 +137,23 @@ sub _read_configfile {
     for ($!=0; <F>; $!=0) {
         #skip first line
         next if ( $. eq 1);
+        chomp;
         #lines that start with pound are comments
         next if(/^\s*\#/);
-          @phtank_ln = split(/,/, $_);
-          my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($phtank_ln[1]);
-          if ( defined $phishdomain ) {
-            push @{$pms->{PHISHING}->{phishurl}}, $phtank_ln[1];
-            push @{$pms->{PHISHING}->{phishdomain}}, $phishdomain;
-            push @{$pms->{PHISHING}->{phishinfo}->{$phishdomain}}, "PhishTank";
-          }
+
+        @phtank_ln = split(/,/, $_);
+        # Count commas to get last field
+        my $cnt_comma = ($_ =~ tr/\,//);
+        # Exclude a Phishing category, too many fp
+        next if( $phtank_ln[$cnt_comma] eq "Other" );
+
+        $phtank_ln[1] =~ s/\"//g;
+        my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($phtank_ln[1]);
+        if ( defined $phishdomain ) {
+          push @{$pms->{PHISHING}->{phishurl}}, $phtank_ln[1];
+          push @{$pms->{PHISHING}->{phishdomain}}, $phishdomain;
+          push @{$pms->{PHISHING}->{phishinfo}->{$phishdomain}}, "PhishTank";
+        }
     }
 
     defined $_ || $!==0  or
