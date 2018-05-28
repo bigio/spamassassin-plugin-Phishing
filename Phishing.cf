@@ -1,6 +1,8 @@
+if (version >= 3.004000)
 ifplugin Mail::SpamAssassin::Plugin::Phishing
 phishing_openphish_feed /etc/mail/spamassassin/openphish-feed.txt
 phishing_phishtank_feed /etc/mail/spamassassin/phishtank-feed.csv
 body    URI_PHISHING       eval:check_phishing()
 describe URI_PHISHING      Url matches phishing feed
+endif
 endif
