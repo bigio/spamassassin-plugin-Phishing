@@ -144,8 +144,9 @@ sub _read_configfile {
         @phtank_ln = split(/,/, $_);
         # Count commas to get last field
         my $cnt_comma = ($_ =~ tr/\,//);
-        # Exclude a Phishing category, too many fp
-        next if( $phtank_ln[$cnt_comma] eq "Other" );
+
+        # XXX Exclude a Phishing category
+        # next if( $phtank_ln[$cnt_comma] eq "Other" );
 
         $phtank_ln[1] =~ s/\"//g;
         my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($phtank_ln[1]);
@@ -166,7 +167,14 @@ sub _read_configfile {
 sub check_phishing {
   my ($self, $pms) = @_;
 
+  my $desc;
+  my $feedname;
   my $uris = $pms->get_uri_detail_list();
+
+  my $rulename = $pms->get_current_eval_rule_name();
+  if (defined $pms->{conf}->{descriptions}->{$rulename}) {
+    $desc = $pms->{conf}->{descriptions}->{$rulename};
+  }
 
   while (my($uri, $info) = each %{$uris}) {
     # we want to skip mailto: uris
@@ -179,17 +187,11 @@ sub check_phishing {
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
            my $domain = $self->{main}->{registryboundaries}->uri_to_domain($cluri);
-           my @phishurlsmall = split /\//, $cluri;
-           my $urlmatch = "https?://" . $domain . "/";
-           if ( defined $phishurlsmall[3] ) {
-             $urlmatch .= $phishurlsmall[3];
-           }
-           if ( defined $phishurlsmall[4] ) {
-             $urlmatch .= $phishurlsmall[4];
-           }
-           if ( grep(/^$urlmatch.*$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
-              dbg("HIT! $domain found in $pms->{PHISHING}->{phishinfo}->{$domain}[0] feed");
-              return 1;
+           if ( grep(/^$cluri$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
+             $feedname = $pms->{PHISHING}->{phishinfo}->{$domain}[0];
+             dbg("HIT! $domain [$cluri] found in $feedname feed");
+             $pms->got_hit($rulename, "", description => $desc . " $feedname ($domain)", ruletype => 'eval');
+             return 1;
            }
         }
       }
