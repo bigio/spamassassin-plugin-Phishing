@@ -42,6 +42,7 @@ OpenPhish or PhishTank feeds.
 
 The Openphish free feed is updated every 6 hours and can be downloaded from
 https://openphish.com/feed.txt.
+The Premium Openphish feed is not currently supported.
 
 The PhishTank free feed is updated every 1 hours and can be downloaded from
 http://data.phishtank.com/data/online-valid.csv.
