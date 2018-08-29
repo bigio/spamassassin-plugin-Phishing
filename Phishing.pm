@@ -52,7 +52,7 @@ To avoid download limits a registration is required.
 package Mail::SpamAssassin::Plugin::Phishing;
 use strict;
 use warnings;
-my $VERSION = 0.001;
+my $VERSION = 1.0;
 
 use Errno qw(EBADF);
 use Mail::SpamAssassin::Plugin;
