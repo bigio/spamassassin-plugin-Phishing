@@ -116,6 +116,7 @@ sub _read_configfile {
   if ( defined($pms->{conf}->{phishing_openphish_feed}) && ( -f $pms->{conf}->{phishing_openphish_feed} ) ) {
     open(F, '<', $pms->{conf}->{phishing_openphish_feed});
     for ($!=0; <F>; $!=0) {
+        chomp;
         #lines that start with pound are comments
         next if(/^\s*\#/);
           my $phishdomain = $self->{main}->{registryboundaries}->uri_to_domain($_);
@@ -169,6 +170,7 @@ sub check_phishing {
 
   my $desc;
   my $feedname;
+  my $domain;
   my $uris = $pms->get_uri_detail_list();
 
   my $rulename = $pms->get_current_eval_rule_name();
@@ -186,8 +188,8 @@ sub check_phishing {
       # check url
       foreach my $cluri (@{$info->{cleaned}}) {
         if (length $cluri) {
-           my $domain = $self->{main}->{registryboundaries}->uri_to_domain($cluri);
-           if ( grep(/^$cluri$/, @{$pms->{PHISHING}->{phishurl}} ) ) {
+           if ( grep { $cluri eq $_ } @{$pms->{PHISHING}->{phishurl}} ) {
+             $domain = $self->{main}->{registryboundaries}->uri_to_domain($cluri);
              $feedname = $pms->{PHISHING}->{phishinfo}->{$domain}[0];
              dbg("HIT! $domain [$cluri] found in $feedname feed");
              $pms->got_hit($rulename, "", description => $desc . " $feedname ($domain)", ruletype => 'eval');
